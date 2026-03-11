@@ -1,21 +1,32 @@
 # Network Scanner Pro
 
-A user-friendly web application for network scanning using Nmap. This tool provides a graphical interface for running common Nmap scans with push-button simplicity.
+A user-friendly web application for network scanning using Nmap and Nuclei. This tool provides a graphical interface for running common security scans with push-button simplicity.
 
 ## Features
 
+### Nmap Scanning
 - **Quick Scans**: Fast TCP scans on common ports
 - **Comprehensive Scans**: Full scans with OS detection and service version
 - **Stealth Scans**: Stealthy TCP SYN scans
 - **Aggressive Scans**: Fast scans with comprehensive detection
 - **Custom Scans**: Full control over all Nmap options
+
+### Nuclei Scanning
+- **Quick Scan**: Fast vulnerability scan using common templates
+- **Vulnerability Detection**: Targeted vulnerability scanning
+- **Exposure Detection**: Find exposed services and data
+- **Misconfiguration Detection**: Identify security misconfigurations
+
+### General Features
 - **Results Display**: Easy-to-read tables of scan results
 - **Export Options**: Export results to TXT or JSON format
+- **Multi-Tool Support**: Both Nmap and Nuclei in one interface
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
 - Nmap installed on your system
+- Nuclei installed on your system
 - npm (Node Package Manager)
 
 ## Installation
