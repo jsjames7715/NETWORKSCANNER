@@ -5,15 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/analytics': {
-        target: 'https://https://jaredgv8lvu.lastapp.dev',
-        changeOrigin: true,
-        secure: true,
-      },
       '/api': {
-        target: 'https://jaredgv8lvu.lastapp.dev',
+        target: 'http://localhost:3001',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
