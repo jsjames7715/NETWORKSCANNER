@@ -27,6 +27,12 @@ A user-friendly web application for network scanning using Nmap and Nuclei. This
 - Node.js (v14 or higher)
 - Nmap installed on your system
 - Nuclei installed on your system
+- Nikto installed on your system
+- Gobuster installed on your system
+- Dirsearch installed on your system
+- FFUF installed on your system
+- Wfuzz installed on your system
+- Masscan installed on your system
 - npm (Node Package Manager)
 
 ## Installation
