@@ -2,9 +2,17 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { nmapService, ScanResult as NmapResult } from '../services/nmapService';
 import { nucleiService, NucleiResult } from '../services/nucleiService';
+import { niktoService, NiktoResult } from '../services/niktoService';
+import { directoryService, DirectoryResult } from '../services/directoryService';
+import { masscanService, MasscanResult } from '../services/masscanService';
 
-type ScanType = 'nmap' | 'nuclei';
-type CombinedResult = (NmapResult & { type: 'nmap' }) | (NucleiResult & { type: 'nuclei' });
+type ScanType = 'nmap' | 'nuclei' | 'nikto' | 'directory' | 'masscan';
+type CombinedResult = 
+  | (NmapResult & { type: 'nmap' })
+  | (NucleiResult & { type: 'nuclei' })
+  | (NiktoResult & { type: 'nikto' })
+  | (DirectoryResult & { type: 'directory' })
+  | (MasscanResult & { type: 'masscan' });
 
 const Results = () => {
   const location = useLocation();
@@ -15,7 +23,11 @@ const Results = () => {
   useEffect(() => {
     const nmapScans = nmapService.getAllScans().map(s => ({ ...s, type: 'nmap' as const }));
     const nucleiScans = nucleiService.getAllScans().map(s => ({ ...s, type: 'nuclei' as const }));
-    const allScans = [...nmapScans, ...nucleiScans].sort((a, b) => 
+    const niktoScans = niktoService.getAllScans().map(s => ({ ...s, type: 'nikto' as const }));
+    const directoryScans = directoryService.getAllScans().map(s => ({ ...s, type: 'directory' as const }));
+    const masscanScans = masscanService.getAllScans().map(s => ({ ...s, type: 'masscan' as const }));
+    
+    const allScans = [...nmapScans, ...nucleiScans, ...niktoScans, ...directoryScans, ...masscanScans].sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
     
@@ -78,27 +90,26 @@ const Results = () => {
       </div>
 
       {/* Scan Type Filter */}
-      <div className="flex space-x-2">
-        <button
-          onClick={() => setScanType('nmap')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            scanType === 'nmap'
-              ? 'bg-cyan-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-          }`}
-        >
-          Nmap Scans
-        </button>
-        <button
-          onClick={() => setScanType('nuclei')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            scanType === 'nuclei'
-              ? 'bg-cyan-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-          }`}
-        >
-          Nuclei Scans
-        </button>
+      <div className="flex space-x-2 flex-wrap gap-y-2">
+        {[
+          { type: 'nmap', label: 'Nmap', color: 'bg-cyan-600' },
+          { type: 'nuclei', label: 'Nuclei', color: 'bg-green-600' },
+          { type: 'nikto', label: 'Nikto', color: 'bg-orange-600' },
+          { type: 'directory', label: 'Directory', color: 'bg-blue-600' },
+          { type: 'masscan', label: 'Masscan', color: 'bg-red-600' },
+        ].map((t) => (
+          <button
+            key={t.type}
+            onClick={() => setScanType(t.type as ScanType)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              scanType === t.type
+                ? `${t.color} text-white`
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -107,7 +118,7 @@ const Results = () => {
           <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
             <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
               <h3 className="text-sm font-semibold text-gray-300">
-                {scanType === 'nmap' ? 'Nmap Scans' : 'Nuclei Scans'}
+                {scanType.charAt(0).toUpperCase() + scanType.slice(1)} Scans
               </h3>
             </div>
             <div className="max-h-96 overflow-y-auto">
@@ -161,7 +172,11 @@ const Results = () => {
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className={`px-2 py-1 rounded text-xs ${
-                      selectedScan.type === 'nmap' ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
+                      selectedScan.type === 'nmap' ? 'bg-blue-900 text-blue-300' :
+                      selectedScan.type === 'nuclei' ? 'bg-green-900 text-green-300' :
+                      selectedScan.type === 'nikto' ? 'bg-orange-900 text-orange-300' :
+                      selectedScan.type === 'directory' ? 'bg-purple-900 text-purple-300' :
+                      'bg-red-900 text-red-300'
                     }`}>
                       {selectedScan.type.toUpperCase()}
                     </span>
@@ -213,6 +228,18 @@ const Results = () => {
                         </p>
                       </div>
                     </>
+                  )}
+                  {selectedScan.type === 'directory' && (
+                    <div>
+                      <p className="text-gray-400">Found Directories</p>
+                      <p className="text-white">{(selectedScan as DirectoryResult).findings?.length || 0}</p>
+                    </div>
+                  )}
+                  {selectedScan.type === 'masscan' && (
+                    <div>
+                      <p className="text-gray-400">Open Ports</p>
+                      <p className="text-white">{(selectedScan as MasscanResult).findings?.length || 0}</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -304,6 +331,64 @@ const Results = () => {
                             <td className="px-4 py-2 text-cyan-400 font-mono">{finding.templateID}</td>
                             <td className="px-4 py-2 text-gray-300">{finding.name}</td>
                             <td className="px-4 py-2 text-gray-400">{finding.type}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : selectedScan.type === 'directory' && (selectedScan as DirectoryResult).findings && (selectedScan as DirectoryResult).findings!.length > 0 ? (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
+                    <h4 className="text-white font-medium">Found Directories & Files</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Status</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Path</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Size</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedScan as DirectoryResult).findings!.map((finding, index) => (
+                          <tr key={index} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700">
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                finding.status === '200' ? 'bg-green-900 text-green-300' :
+                                finding.status === '301' || finding.status === '302' ? 'bg-yellow-900 text-yellow-300' :
+                                'bg-gray-700 text-gray-300'
+                              }`}>
+                                {finding.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-cyan-400 font-mono">{finding.path}</td>
+                            <td className="px-4 py-2 text-gray-400">{finding.size || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : selectedScan.type === 'masscan' && (selectedScan as MasscanResult).findings && (selectedScan as MasscanResult).findings!.length > 0 ? (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
+                    <h4 className="text-white font-medium">Open Ports</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">IP Address</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Port</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedScan as MasscanResult).findings!.map((finding, index) => (
+                          <tr key={index} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700">
+                            <td className="px-4 py-2 text-gray-300">{finding.ip}</td>
+                            <td className="px-4 py-2 text-cyan-400 font-mono">{finding.port}</td>
                           </tr>
                         ))}
                       </tbody>

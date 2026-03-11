@@ -3,6 +3,9 @@ import Dashboard from './pages/Dashboard';
 import QuickScan from './pages/QuickScan';
 import CustomScan from './pages/CustomScan';
 import NucleiScan from './pages/NucleiScan';
+import NiktoScan from './pages/NiktoScan';
+import DirectoryBusting from './pages/DirectoryBusting';
+import MasscanScan from './pages/MasscanScan';
 import Results from './pages/Results';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -21,6 +24,9 @@ function App() {
                 <Route path="/quick-scan" element={<QuickScan />} />
                 <Route path="/custom-scan" element={<CustomScan />} />
                 <Route path="/nuclei-scan" element={<NucleiScan />} />
+                <Route path="/nikto-scan" element={<NiktoScan />} />
+                <Route path="/directory-busting" element={<DirectoryBusting />} />
+                <Route path="/masscan-scan" element={<MasscanScan />} />
                 <Route path="/results" element={<Results />} />
               </Routes>
             </div>
