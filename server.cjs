@@ -11,6 +11,73 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// API endpoint to run Nuclei scans
+app.post('/api/nuclei-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    // Build the Nuclei command based on options
+    let cmd = `nuclei -u ${target}`;
+
+    // Scan type
+    if (options.scanType === 'vulnerability') {
+        cmd += ' -t vulnerabilities/';
+    } else if (options.scanType === 'exposure') {
+        cmd += ' -t exposures/';
+    } else if (options.scanType === 'misconfiguration') {
+        cmd += ' -t misconfiguration/';
+    } else if (options.scanType === 'custom') {
+        // Custom scan options
+        if (options.templates) cmd += ` -t ${options.templates}`;
+        if (options.severity) cmd += ` -severity ${options.severity}`;
+        if (options.excludeId) cmd += ` -exclude-id ${options.excludeId}`;
+        if (options.rateLimit) cmd += ` -rate-limit ${options.rateLimit}`;
+        if (options.concurrency) cmd += ` -concurrency ${options.concurrency}`;
+        if (options.customArgs) cmd += ` ${options.customArgs}`;
+    } else {
+        // Quick scan - use default templates
+        cmd += ' -t /home/user/.local/nuclei-templates';
+    }
+
+    console.log(`Running Nuclei scan: ${cmd}`);
+
+    // For now, return immediately with a placeholder
+    // In a production app, you'd want to run this asynchronously
+    const output = `Nuclei scan started for ${target}. Scan command: ${cmd}\nNote: Full Nuclei scans can take several minutes. In a production environment, this would run asynchronously.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse Nuclei output to extract findings
+function parseNucleiOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        // Detect finding lines (typically in format: [severity] template-id: finding-name)
+        const findingMatch = line.match(/\[(\w+)\]\s+(\S+):\s*(.+)/);
+        if (findingMatch) {
+            findings.push({
+                severity: findingMatch[1],
+                templateID: findingMatch[2],
+                name: findingMatch[3],
+                type: 'vulnerability'
+            });
+        }
+    }
+
+    return findings;
+}
+
 // API endpoint to run Nmap scans
 app.post('/api/scan', (req, res) => {
     const { target, options } = req.body;

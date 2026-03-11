@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { nmapService, ScanResult } from '../services/nmapService';
+import { nucleiService, NucleiResult } from '../services/nucleiService';
 
 const Dashboard = () => {
-  const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
+  const [recentScans, setRecentScans] = useState<(ScanResult | NucleiResult)[]>([]);
   const [stats, setStats] = useState({
     totalScans: 0,
     successfulScans: 0,
@@ -12,13 +13,18 @@ const Dashboard = () => {
   });
 
   useEffect(() => {
-    const scans = nmapService.getAllScans();
-    setRecentScans(scans.slice(0, 5));
+    const nmapScans = nmapService.getAllScans();
+    const nucleiScans = nucleiService.getAllScans();
+    const allScans = [...nmapScans, ...nucleiScans].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    setRecentScans(allScans.slice(0, 5));
     setStats({
-      totalScans: scans.length,
-      successfulScans: scans.filter(s => s.status === 'completed').length,
-      failedScans: scans.filter(s => s.status === 'error').length,
-      activeScans: scans.filter(s => s.status === 'running').length,
+      totalScans: allScans.length,
+      successfulScans: allScans.filter(s => s.status === 'completed').length,
+      failedScans: allScans.filter(s => s.status === 'error').length,
+      activeScans: allScans.filter(s => s.status === 'running').length,
     });
   }, []);
 
@@ -88,7 +94,7 @@ const Dashboard = () => {
       {/* Quick Scan Options */}
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
         <h3 className="text-lg font-semibold text-white mb-4">Quick Scan Options</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Link
             to="/quick-scan"
             state={{ scanType: 'quick' }}
@@ -101,7 +107,7 @@ const Dashboard = () => {
                 </svg>
               </div>
               <div>
-                <p className="text-white font-medium">Quick Scan</p>
+                <p className="text-white font-medium">Nmap Quick</p>
                 <p className="text-gray-400 text-sm">Fast TCP scan</p>
               </div>
             </div>
@@ -118,26 +124,42 @@ const Dashboard = () => {
                 </svg>
               </div>
               <div>
-                <p className="text-white font-medium">Comprehensive</p>
+                <p className="text-white font-medium">Nmap Comprehensive</p>
                 <p className="text-gray-400 text-sm">Full scan with OS detection</p>
               </div>
             </div>
           </Link>
           <Link
-            to="/quick-scan"
-            state={{ scanType: 'stealth' }}
+            to="/nuclei-scan"
+            state={{ scanType: 'quick' }}
             className="bg-gray-700 hover:bg-gray-600 rounded-lg p-4 transition-colors border border-gray-600 hover:border-cyan-500"
           >
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
               </div>
               <div>
-                <p className="text-white font-medium">Stealth</p>
-                <p className="text-gray-400 text-sm">Stealthy scanning</p>
+                <p className="text-white font-medium">Nuclei Quick</p>
+                <p className="text-gray-400 text-sm">Vulnerability scan</p>
+              </div>
+            </div>
+          </Link>
+          <Link
+            to="/nuclei-scan"
+            state={{ scanType: 'vulnerability' }}
+            className="bg-gray-700 hover:bg-gray-600 rounded-lg p-4 transition-colors border border-gray-600 hover:border-cyan-500"
+          >
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-medium">Nuclei Vuln</p>
+                <p className="text-gray-400 text-sm">Critical vulns only</p>
               </div>
             </div>
           </Link>

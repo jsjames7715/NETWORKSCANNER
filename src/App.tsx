@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import QuickScan from './pages/QuickScan';
 import CustomScan from './pages/CustomScan';
+import NucleiScan from './pages/NucleiScan';
 import Results from './pages/Results';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -19,6 +20,7 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/quick-scan" element={<QuickScan />} />
                 <Route path="/custom-scan" element={<CustomScan />} />
+                <Route path="/nuclei-scan" element={<NucleiScan />} />
                 <Route path="/results" element={<Results />} />
               </Routes>
             </div>

@@ -1,22 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { nmapService, ScanResult } from '../services/nmapService';
+import { nmapService, ScanResult as NmapResult } from '../services/nmapService';
+import { nucleiService, NucleiResult } from '../services/nucleiService';
+
+type ScanType = 'nmap' | 'nuclei';
+type CombinedResult = (NmapResult & { type: 'nmap' }) | (NucleiResult & { type: 'nuclei' });
 
 const Results = () => {
   const location = useLocation();
-  const [selectedScan, setSelectedScan] = useState<ScanResult | null>(null);
-  const [scans, setScans] = useState<ScanResult[]>([]);
+  const [selectedScan, setSelectedScan] = useState<CombinedResult | null>(null);
+  const [scans, setScans] = useState<CombinedResult[]>([]);
+  const [scanType, setScanType] = useState<ScanType>('nmap');
 
   useEffect(() => {
-    const allScans = nmapService.getAllScans();
+    const nmapScans = nmapService.getAllScans().map(s => ({ ...s, type: 'nmap' as const }));
+    const nucleiScans = nucleiService.getAllScans().map(s => ({ ...s, type: 'nuclei' as const }));
+    const allScans = [...nmapScans, ...nucleiScans].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
     setScans(allScans);
 
     // If we came from a scan, select it
     if (location.state?.scanId) {
-      const scan = nmapService.getScan(location.state.scanId);
-      if (scan) setSelectedScan(scan);
+      const scan = allScans.find(s => s.id === location.state.scanId);
+      if (scan) {
+        setSelectedScan(scan);
+        setScanType(scan.type);
+      }
     } else if (allScans.length > 0) {
       setSelectedScan(allScans[0]);
+      setScanType(allScans[0].type);
     }
   }, [location.state]);
 
@@ -31,7 +45,7 @@ const Results = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nmap-scan-${selectedScan.id}.${format}`;
+    a.download = `${selectedScan.type}-scan-${selectedScan.id}.${format}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -63,41 +77,72 @@ const Results = () => {
         </div>
       </div>
 
+      {/* Scan Type Filter */}
+      <div className="flex space-x-2">
+        <button
+          onClick={() => setScanType('nmap')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            scanType === 'nmap'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          Nmap Scans
+        </button>
+        <button
+          onClick={() => setScanType('nuclei')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            scanType === 'nuclei'
+              ? 'bg-cyan-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          }`}
+        >
+          Nuclei Scans
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Scan List */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
             <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-300">Scans</h3>
+              <h3 className="text-sm font-semibold text-gray-300">
+                {scanType === 'nmap' ? 'Nmap Scans' : 'Nuclei Scans'}
+              </h3>
             </div>
             <div className="max-h-96 overflow-y-auto">
-              {scans.length === 0 ? (
+              {scans.filter(s => s.type === scanType).length === 0 ? (
                 <div className="px-4 py-8 text-center text-gray-400 text-sm">
-                  No scans yet
+                  No {scanType} scans yet
                 </div>
               ) : (
-                scans.map((scan) => (
-                  <button
-                    key={scan.id}
-                    onClick={() => setSelectedScan(scan)}
-                    className={`w-full px-4 py-3 text-left border-b border-gray-700 last:border-b-0 hover:bg-gray-700 transition-colors ${
-                      selectedScan?.id === scan.id ? 'bg-cyan-600' : ''
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        scan.status === 'completed' ? 'bg-green-400' :
-                        scan.status === 'running' ? 'bg-yellow-400' : 'bg-red-400'
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm truncate">{scan.target}</p>
-                        <p className="text-gray-400 text-xs">
-                          {scan.timestamp.toLocaleDateString()} {scan.timestamp.toLocaleTimeString()}
-                        </p>
+                scans
+                  .filter(s => s.type === scanType)
+                  .map((scan) => (
+                    <button
+                      key={scan.id}
+                      onClick={() => {
+                        setSelectedScan(scan);
+                        setScanType(scan.type);
+                      }}
+                      className={`w-full px-4 py-3 text-left border-b border-gray-700 last:border-b-0 hover:bg-gray-700 transition-colors ${
+                        selectedScan?.id === scan.id ? 'bg-cyan-600' : ''
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          scan.status === 'completed' ? 'bg-green-400' :
+                          scan.status === 'running' ? 'bg-yellow-400' : 'bg-red-400'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm truncate">{scan.target}</p>
+                          <p className="text-gray-400 text-xs">
+                            {new Date(scan.timestamp).toLocaleDateString()} {new Date(scan.timestamp).toLocaleTimeString()}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                ))
+                    </button>
+                  ))
               )}
             </div>
           </div>
@@ -115,6 +160,11 @@ const Results = () => {
                     <p className="text-gray-400 text-sm">{selectedScan.command}</p>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      selectedScan.type === 'nmap' ? 'bg-blue-900 text-blue-300' : 'bg-purple-900 text-purple-300'
+                    }`}>
+                      {selectedScan.type.toUpperCase()}
+                    </span>
                     <div className={`w-3 h-3 rounded-full ${
                       selectedScan.status === 'completed' ? 'bg-green-400' :
                       selectedScan.status === 'running' ? 'bg-yellow-400' : 'bg-red-400'
@@ -134,25 +184,43 @@ const Results = () => {
                   </div>
                   <div>
                     <p className="text-gray-400">Started</p>
-                    <p className="text-white">{selectedScan.timestamp.toLocaleString()}</p>
+                    <p className="text-white">{new Date(selectedScan.timestamp).toLocaleString()}</p>
                   </div>
-                  <div>
-                    <p className="text-gray-400">Hosts Found</p>
-                    <p className="text-white">{selectedScan.hosts?.length || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-400">Total Ports</p>
-                    <p className="text-white">
-                      {selectedScan.hosts?.reduce((sum, host) => sum + host.ports.length, 0) || 0}
-                    </p>
-                  </div>
+                  {selectedScan.type === 'nmap' && (
+                    <>
+                      <div>
+                        <p className="text-gray-400">Hosts Found</p>
+                        <p className="text-white">{(selectedScan as NmapResult).hosts?.length || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400">Total Ports</p>
+                        <p className="text-white">
+                          {(selectedScan as NmapResult).hosts?.reduce((sum, host) => sum + host.ports.length, 0) || 0}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {selectedScan.type === 'nuclei' && (
+                    <>
+                      <div>
+                        <p className="text-gray-400">Findings</p>
+                        <p className="text-white">{(selectedScan as NucleiResult).findings?.length || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400">Critical</p>
+                        <p className="text-red-400">
+                          {(selectedScan as NucleiResult).findings?.filter(f => f.severity === 'critical').length || 0}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Host Results */}
-              {selectedScan.hosts && selectedScan.hosts.length > 0 ? (
+              {/* Results Table */}
+              {selectedScan.type === 'nmap' && (selectedScan as NmapResult).hosts && (selectedScan as NmapResult).hosts!.length > 0 ? (
                 <div className="space-y-4">
-                  {selectedScan.hosts.map((host, index) => (
+                  {(selectedScan as NmapResult).hosts!.map((host, index) => (
                     <div key={index} className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
                       <div className="px-4 py-3 bg-gray-750 border-b border-gray-700 flex items-center justify-between">
                         <div>
@@ -204,6 +272,44 @@ const Results = () => {
                     </div>
                   ))}
                 </div>
+              ) : selectedScan.type === 'nuclei' && (selectedScan as NucleiResult).findings && (selectedScan as NucleiResult).findings!.length > 0 ? (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
+                    <h4 className="text-white font-medium">Vulnerability Findings</h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Severity</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Template ID</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Finding</th>
+                          <th className="px-4 py-2 text-left text-gray-400 font-medium">Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedScan as NucleiResult).findings!.map((finding, index) => (
+                          <tr key={index} className="border-b border-gray-700 last:border-b-0 hover:bg-gray-700">
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-0.5 rounded text-xs ${
+                                finding.severity === 'critical' ? 'bg-red-900 text-red-300' :
+                                finding.severity === 'high' ? 'bg-orange-900 text-orange-300' :
+                                finding.severity === 'medium' ? 'bg-yellow-900 text-yellow-300' :
+                                finding.severity === 'low' ? 'bg-blue-900 text-blue-300' :
+                                'bg-gray-700 text-gray-300'
+                              }`}>
+                                {finding.severity}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-cyan-400 font-mono">{finding.templateID}</td>
+                            <td className="px-4 py-2 text-gray-300">{finding.name}</td>
+                            <td className="px-4 py-2 text-gray-400">{finding.type}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ) : (
                 <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center text-gray-400">
                   {selectedScan.status === 'running' ? (
@@ -215,7 +321,7 @@ const Results = () => {
                       <span>Scan in progress...</span>
                     </div>
                   ) : (
-                    <p>No hosts found or scan results pending</p>
+                    <p>No findings or results available</p>
                   )}
                 </div>
               )}
