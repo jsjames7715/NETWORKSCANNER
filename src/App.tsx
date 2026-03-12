@@ -6,6 +6,7 @@ import NucleiScan from './pages/NucleiScan';
 import NiktoScan from './pages/NiktoScan';
 import DirectoryBusting from './pages/DirectoryBusting';
 import MasscanScan from './pages/MasscanScan';
+import NetworkUtilities from './pages/NetworkUtilities';
 import Results from './pages/Results';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -27,6 +28,7 @@ function App() {
                 <Route path="/nikto-scan" element={<NiktoScan />} />
                 <Route path="/directory-busting" element={<DirectoryBusting />} />
                 <Route path="/masscan-scan" element={<MasscanScan />} />
+                <Route path="/network-utilities" element={<NetworkUtilities />} />
                 <Route path="/results" element={<Results />} />
               </Routes>
             </div>

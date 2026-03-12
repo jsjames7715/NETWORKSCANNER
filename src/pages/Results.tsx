@@ -5,14 +5,16 @@ import { nucleiService, NucleiResult } from '../services/nucleiService';
 import { niktoService, NiktoResult } from '../services/niktoService';
 import { directoryService, DirectoryResult } from '../services/directoryService';
 import { masscanService, MasscanResult } from '../services/masscanService';
+import { networkUtilitiesService, UtilityResult } from '../services/networkUtilities';
 
-type ScanType = 'nmap' | 'nuclei' | 'nikto' | 'directory' | 'masscan';
+type ScanType = 'nmap' | 'nuclei' | 'nikto' | 'directory' | 'masscan' | 'utilities';
 type CombinedResult = 
   | (NmapResult & { type: 'nmap' })
   | (NucleiResult & { type: 'nuclei' })
   | (NiktoResult & { type: 'nikto' })
   | (DirectoryResult & { type: 'directory' })
-  | (MasscanResult & { type: 'masscan' });
+  | (MasscanResult & { type: 'masscan' })
+  | (UtilityResult & { type: 'utilities' });
 
 const Results = () => {
   const location = useLocation();
@@ -26,8 +28,9 @@ const Results = () => {
     const niktoScans = niktoService.getAllScans().map(s => ({ ...s, type: 'nikto' as const }));
     const directoryScans = directoryService.getAllScans().map(s => ({ ...s, type: 'directory' as const }));
     const masscanScans = masscanService.getAllScans().map(s => ({ ...s, type: 'masscan' as const }));
+    const utilitiesScans = networkUtilitiesService.getAllScans().map(s => ({ ...s, type: 'utilities' as const }));
     
-    const allScans = [...nmapScans, ...nucleiScans, ...niktoScans, ...directoryScans, ...masscanScans].sort((a, b) => 
+    const allScans = [...nmapScans, ...nucleiScans, ...niktoScans, ...directoryScans, ...masscanScans, ...utilitiesScans].sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
     
@@ -97,6 +100,7 @@ const Results = () => {
           { type: 'nikto', label: 'Nikto', color: 'bg-orange-600' },
           { type: 'directory', label: 'Directory', color: 'bg-blue-600' },
           { type: 'masscan', label: 'Masscan', color: 'bg-red-600' },
+          { type: 'utilities', label: 'Utilities', color: 'bg-yellow-600' },
         ].map((t) => (
           <button
             key={t.type}
@@ -176,7 +180,8 @@ const Results = () => {
                       selectedScan.type === 'nuclei' ? 'bg-green-900 text-green-300' :
                       selectedScan.type === 'nikto' ? 'bg-orange-900 text-orange-300' :
                       selectedScan.type === 'directory' ? 'bg-purple-900 text-purple-300' :
-                      'bg-red-900 text-red-300'
+                      selectedScan.type === 'masscan' ? 'bg-red-900 text-red-300' :
+                      'bg-yellow-900 text-yellow-300'
                     }`}>
                       {selectedScan.type.toUpperCase()}
                     </span>
@@ -393,6 +398,18 @@ const Results = () => {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              ) : selectedScan.type === 'utilities' ? (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 bg-gray-750 border-b border-gray-700">
+                    <h4 className="text-white font-medium">Utility Output</h4>
+                    <p className="text-gray-400 text-sm mt-1">{(selectedScan as UtilityResult).tool.toUpperCase()} result for {(selectedScan as UtilityResult).target}</p>
+                  </div>
+                  <div className="p-4">
+                    <pre className="text-sm text-gray-300 whitespace-pre-wrap">
+                      {selectedScan.output}
+                    </pre>
                   </div>
                 </div>
               ) : (
