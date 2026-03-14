@@ -85,7 +85,11 @@ class NmapService {
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+      const data = JSON.parse(responseText);
       result.output = data.output;
       result.hosts = data.hosts;
       result.status = 'completed';
