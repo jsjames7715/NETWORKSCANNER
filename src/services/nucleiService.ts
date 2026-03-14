@@ -67,8 +67,17 @@ class NucleiService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Scan failed');
+        const errorText = await response.text();
+        let errorMessage = 'Scan failed';
+        if (errorText) {
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

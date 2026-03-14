@@ -77,8 +77,17 @@ class NetworkUtilitiesService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Utility failed');
+        const errorText = await response.text();
+        let errorMessage = 'Utility failed';
+        if (errorText) {
+          try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = errorText;
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
