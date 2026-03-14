@@ -11,6 +11,43 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// Helper to safely execute commands and return JSON
+function safeExec(cmd, timeout, res, successDataBuilder) {
+    const execProcess = exec(cmd, { timeout }, (error, stdout, stderr) => {
+        // Always ensure we send a response
+        try {
+            if (error && stderr && !stderr.includes('WARNING') && !stderr.includes('Note')) {
+                console.error(`Command error [${cmd}]:`, stderr);
+                return res.status(500).json({ error: stderr });
+            }
+            
+            const output = stdout || stderr;
+            const data = successDataBuilder(output);
+            res.json(data);
+        } catch (err) {
+            console.error(`Processing error [${cmd}]:`, err);
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Handle process errors (e.g., timeout, signal)
+    execProcess.on('error', (err) => {
+        console.error(`Exec process error [${cmd}]:`, err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    execProcess.on('exit', (code, signal) => {
+        if (signal === 'SIGTERM') {
+            console.error(`Exec process terminated [${cmd}]: Timeout`);
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Command timed out' });
+            }
+        }
+    });
+}
+
 // API endpoint to run Nmap scans
 app.post('/api/scan', (req, res) => {
     const { target, options } = req.body;
@@ -44,23 +81,15 @@ app.post('/api/scan', (req, res) => {
 
     console.log(`Running scan: ${cmd}`);
 
-    exec(cmd, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING') && !stderr.includes('Note')) {
-            console.error('Nmap error:', stderr);
-            return res.status(500).json({ error: stderr });
-        }
-
-        // Parse the output
-        const output = stdout || stderr;
+    safeExec(cmd, 120000, res, (output) => {
         const hosts = parseNmapOutput(output);
-
-        res.json({
+        return {
             success: true,
             command: cmd,
             output: output,
             hosts: hosts,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -139,8 +168,7 @@ app.post('/api/nuclei-scan', (req, res) => {
 
     console.log(`Running Nuclei scan: ${cmd}`);
 
-    // For now, return immediately with a placeholder
-    // In a production app, you'd want to run this asynchronously
+    // Return immediately with a placeholder to prevent blocking
     const output = `Nuclei scan started for ${target}. Scan command: ${cmd}\nNote: Full Nuclei scans can take several minutes. In a production environment, this would run asynchronously.`;
     
     res.json({
@@ -184,16 +212,13 @@ app.post('/api/whois', (req, res) => {
     const cmd = `whois ${target}`;
     console.log(`Running whois: ${cmd}`);
 
-    exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 30000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -209,16 +234,13 @@ app.post('/api/traceroute', (req, res) => {
     const cmd = `traceroute -m ${hops} ${target}`;
     console.log(`Running traceroute: ${cmd}`);
 
-    exec(cmd, { timeout: 120000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 120000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -233,16 +255,13 @@ app.post('/api/dns-lookup', (req, res) => {
     const cmd = `dig ${target} ${type || 'ANY'} +short`;
     console.log(`Running dig: ${cmd}`);
 
-    exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 10000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -257,16 +276,13 @@ app.post('/api/ping', (req, res) => {
     const cmd = `ping -c ${count || 4} ${target}`;
     console.log(`Running ping: ${cmd}`);
 
-    exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 30000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -281,16 +297,13 @@ app.post('/api/host-lookup', (req, res) => {
     const cmd = `host ${target}`;
     console.log(`Running host: ${cmd}`);
 
-    exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 10000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
@@ -305,16 +318,13 @@ app.post('/api/nslookup', (req, res) => {
     const cmd = server ? `nslookup ${target} ${server}` : `nslookup ${target}`;
     console.log(`Running nslookup: ${cmd}`);
 
-    exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
-        if (error && stderr && !stderr.includes('WARNING')) {
-            return res.status(500).json({ error: stderr });
-        }
-        res.json({
+    safeExec(cmd, 10000, res, (output) => {
+        return {
             success: true,
             command: cmd,
-            output: stdout || stderr,
+            output: output,
             timestamp: new Date().toISOString()
-        });
+        };
     });
 });
 
