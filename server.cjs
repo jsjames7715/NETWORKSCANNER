@@ -16,9 +16,17 @@ function safeExec(cmd, timeout, res, successDataBuilder) {
     const execProcess = exec(cmd, { timeout }, (error, stdout, stderr) => {
         // Always ensure we send a response
         try {
-            if (error && stderr && !stderr.includes('WARNING') && !stderr.includes('Note')) {
-                console.error(`Command error [${cmd}]:`, stderr);
-                return res.status(500).json({ error: stderr });
+            if (error) {
+                // Check if it's a real error or just a non-zero exit code
+                if (stderr && !stderr.includes('WARNING') && !stderr.includes('Note')) {
+                    console.error(`Command error [${cmd}]:`, stderr);
+                    return res.status(500).json({ error: stderr });
+                }
+                // If error but no stderr, it might be a timeout or signal
+                if (error.killed || error.signal) {
+                    console.error(`Command killed [${cmd}]:`, error.message);
+                    return res.status(500).json({ error: error.message });
+                }
             }
             
             const output = stdout || stderr;

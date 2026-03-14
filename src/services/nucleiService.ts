@@ -47,6 +47,7 @@ class NucleiService {
     this.scans.set(id, result);
 
     try {
+      console.log('Nuclei scan request:', { target: options.target, scanType: options.scanType });
       const response = await fetch('/api/nuclei-scan', {
         method: 'POST',
         headers: {
@@ -65,6 +66,7 @@ class NucleiService {
           },
         }),
       });
+      console.log('Nuclei scan response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -80,11 +82,18 @@ class NucleiService {
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      console.log('Nuclei scan response text:', responseText);
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+      const data = JSON.parse(responseText);
+      console.log('Nuclei scan data:', data);
       result.output = data.output;
       result.findings = data.findings;
       result.status = 'completed';
     } catch (error) {
+      console.error('Nuclei scan error:', error);
       result.status = 'error';
       result.output = error instanceof Error ? error.message : 'Unknown error';
     }
