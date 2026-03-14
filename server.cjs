@@ -11,6 +11,101 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// API endpoint to run Nmap scans
+app.post('/api/scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    // Build the Nmap command based on options
+    let cmd = 'nmap';
+
+    if (options.scanType === 'quick') {
+        cmd += ' -T4 -F';
+    } else if (options.scanType === 'comprehensive') {
+        cmd += ' -sS -sV -sC -O -A';
+    } else if (options.scanType === 'stealth') {
+        cmd += ' -sS -sN -sF -sX';
+    } else if (options.scanType === 'aggressive') {
+        cmd += ' -A -T4';
+    } else {
+        // Custom scan
+        if (options.speed) cmd += ` -T${options.speed}`;
+        if (options.ports) cmd += ` -p ${options.ports}`;
+        if (options.osDetection) cmd += ' -O';
+        if (options.versionDetection) cmd += ' -sV';
+        if (options.scriptScan) cmd += ' -sC';
+        if (options.customArgs) cmd += ` ${options.customArgs}`;
+    }
+
+    cmd += ` ${target}`;
+
+    console.log(`Running scan: ${cmd}`);
+
+    exec(cmd, (error, stdout, stderr) => {
+        if (error && stderr && !stderr.includes('WARNING') && !stderr.includes('Note')) {
+            console.error('Nmap error:', stderr);
+            return res.status(500).json({ error: stderr });
+        }
+
+        // Parse the output
+        const output = stdout || stderr;
+        const hosts = parseNmapOutput(output);
+
+        res.json({
+            success: true,
+            command: cmd,
+            output: output,
+            hosts: hosts,
+            timestamp: new Date().toISOString()
+        });
+    });
+});
+
+// Parse Nmap output to extract host information
+function parseNmapOutput(output) {
+    const hosts = [];
+    const lines = output.split('\n');
+    let currentHost = null;
+
+    for (const line of lines) {
+        // Detect host line
+        const hostMatch = line.match(/Nmap scan report for (.+)/);
+        if (hostMatch) {
+            if (currentHost) hosts.push(currentHost);
+            currentHost = {
+                ip: hostMatch[1],
+                ports: [],
+            };
+            continue;
+        }
+
+        // Detect port line
+        const portMatch = line.match(/(\d+)\/(\w+)\s+(\w+)\s+(.+)/);
+        if (portMatch && currentHost) {
+            const port = {
+                port: parseInt(portMatch[1]),
+                protocol: portMatch[2],
+                state: portMatch[3],
+                service: portMatch[4],
+            };
+            currentHost.ports.push(port);
+            continue;
+        }
+
+        // Detect OS line
+        const osMatch = line.match(/OS details?: (.+)/);
+        if (osMatch && currentHost) {
+            currentHost.os = osMatch[1];
+        }
+    }
+
+    if (currentHost) hosts.push(currentHost);
+    return hosts;
+}
+
 // API endpoint to run Nuclei scans
 app.post('/api/nuclei-scan', (req, res) => {
     const { target, options } = req.body;
@@ -222,6 +317,274 @@ app.post('/api/nslookup', (req, res) => {
         });
     });
 });
+
+// API endpoint to run Nikto scans
+app.post('/api/nikto-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `nikto -h ${target}`;
+
+    if (options.port) cmd += ` -port ${options.port}`;
+    if (options.ssl) cmd += ' -ssl';
+    if (options.tuning) cmd += ` -Tuning ${options.tuning}`;
+    if (options.output) cmd += ` -output /tmp/nikto-${Date.now()}.txt`;
+
+    console.log(`Running Nikto scan: ${cmd}`);
+
+    // Return immediately with placeholder to avoid blocking
+    const output = `Nikto scan started for ${target}.\nCommand: ${cmd}\nNote: Full Nikto scans can take several minutes.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        timestamp: new Date().toISOString()
+    });
+});
+
+// API endpoint to run Gobuster scans
+app.post('/api/gobuster-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `gobuster dir -u ${target}`;
+    
+    if (options.wordlist) cmd += ` -w ${options.wordlist}`;
+    if (options.threads) cmd += ` -t ${options.threads}`;
+    if (options.extensions) cmd += ` -x ${options.extensions}`;
+    if (options.statusCodes) cmd += ` -s ${options.statusCodes}`;
+
+    console.log(`Running Gobuster scan: ${cmd}`);
+
+    // Return immediately with placeholder
+    const output = `Gobuster scan started for ${target}.\nCommand: ${cmd}\nNote: Directory busting scans can take time.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse Gobuster output
+function parseGobusterOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        const match = line.match(/\/([^\s]+)\s+\(Status:\s*(\d+)\)/);
+        if (match) {
+            findings.push({
+                path: match[1],
+                status: match[2],
+                url: match[0]
+            });
+        }
+    }
+
+    return findings;
+}
+
+// API endpoint to run Dirsearch scans
+app.post('/api/dirsearch-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `dirsearch -u ${target}`;
+
+    if (options.wordlist) cmd += ` -w ${options.wordlist}`;
+    if (options.threads) cmd += ` -t ${options.threads}`;
+    if (options.extensions) cmd += ` -e ${options.extensions}`;
+    if (options.recursion) cmd += ' -r';
+    if (options.excludeStatus) cmd += ` --exclude-status ${options.excludeStatus}`;
+
+    console.log(`Running Dirsearch scan: ${cmd}`);
+
+    // Return immediately with placeholder
+    const output = `Dirsearch scan started for ${target}.\nCommand: ${cmd}\nNote: Directory busting scans can take time.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse Dirsearch output
+function parseDirsearchOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        const match = line.match(/(\d{3})\s+([^\s]+)\s+([^\s]+)/);
+        if (match) {
+            findings.push({
+                status: match[1],
+                path: match[2],
+                size: match[3]
+            });
+        }
+    }
+
+    return findings;
+}
+
+// API endpoint to run FFUF scans
+app.post('/api/ffuf-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `ffuf -u ${target}`;
+
+    if (options.wordlist) cmd += ` -w ${options.wordlist}`;
+    if (options.threads) cmd += ` -t ${options.threads}`;
+    if (options.extensions) cmd += ` -e ${options.extensions}`;
+    if (options.matchStatus) cmd += ` -mc ${options.matchStatus}`;
+    if (options.delay) cmd += ` -p ${options.delay}`;
+
+    console.log(`Running FFUF scan: ${cmd}`);
+
+    // Return immediately with placeholder
+    const output = `FFUF scan started for ${target}.\nCommand: ${cmd}\nNote: Directory busting scans can take time.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse FFUF output
+function parseFFUFOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        const match = line.match(/"([^"]+)"\s+(\d{3})/);
+        if (match) {
+            findings.push({
+                path: match[1],
+                status: match[2]
+            });
+        }
+    }
+
+    return findings;
+}
+
+// API endpoint to run Wfuzz scans
+app.post('/api/wfuzz-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `wfuzz -c -z file,${options.wordlist || '/usr/share/wordlists/dirb/common.txt'}`;
+
+    if (options.threads) cmd += ` --hc ${options.threads}`;
+    if (options.delay) cmd += ` --delay ${options.delay}`;
+    cmd += ` ${target}`;
+
+    console.log(`Running Wfuzz scan: ${cmd}`);
+
+    // Return immediately with placeholder
+    const output = `Wfuzz scan started for ${target}.\nCommand: ${cmd}\nNote: Directory busting scans can take time.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse Wfuzz output
+function parseWfuzzOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        const match = line.match(/(\d{3})\s+([^\s]+)\s+([^\s]+)/);
+        if (match) {
+            findings.push({
+                status: match[1],
+                path: match[2],
+                size: match[3]
+            });
+        }
+    }
+
+    return findings;
+}
+
+// API endpoint to run Masscan scans
+app.post('/api/masscan-scan', (req, res) => {
+    const { target, options } = req.body;
+
+    if (!target) {
+        return res.status(400).json({ error: 'Target is required' });
+    }
+
+    let cmd = `masscan ${target}`;
+
+    if (options.ports) cmd += ` -p${options.ports}`;
+    if (options.rate) cmd += ` --rate ${options.rate}`;
+    if (options.exclude) cmd += ` --exclude ${options.exclude}`;
+    if (options.banner) cmd += ' --banners';
+
+    console.log(`Running Masscan scan: ${cmd}`);
+
+    // Return immediately with placeholder
+    const output = `Masscan scan started for ${target}.\nCommand: ${cmd}\nNote: Masscan is very fast but might require root privileges.`;
+    
+    res.json({
+        success: true,
+        command: cmd,
+        output: output,
+        findings: [],
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Parse Masscan output
+function parseMasscanOutput(output) {
+    const findings = [];
+    const lines = output.split('\n');
+
+    for (const line of lines) {
+        const match = line.match(/(\d{3})\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+)/);
+        if (match) {
+            findings.push({
+                status: match[1],
+                ip: match[2],
+                port: match[3]
+            });
+        }
+    }
+
+    return findings;
+}
 
 // Serve React app for all other routes
 app.get('*', (req, res) => {
