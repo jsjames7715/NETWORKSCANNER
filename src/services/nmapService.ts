@@ -90,6 +90,7 @@ class NmapService {
       result.hosts = data.hosts;
       result.status = 'completed';
     } catch (error) {
+      console.error('Nmap scan error:', error);
       result.status = 'error';
       result.output = error instanceof Error ? error.message : 'Unknown error';
     }
